@@ -29,7 +29,7 @@ async function run() {
 
     const foodMenuCollection = client.db("RMS").collection("Food_Menu");
 
-    // Food Collection
+    // Food Collections
 
     app.get("/food-menu", async (req, res) => {
       const result = await foodMenuCollection.find().toArray();
