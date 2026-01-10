@@ -28,6 +28,7 @@ async function run() {
     await client.connect();
 
     const foodMenuCollection = client.db("RMS").collection("Food_Menu");
+    const userCollection = client.db("RMS").collection("Users");
 
     // Food Collections
 
@@ -60,11 +61,94 @@ async function run() {
     app.delete("/food-menu/:id", async (req, res) => {
       const id = req.params.id;
 
-      const result = await foodMenuCollection.deleteOne(
-        { _id: new ObjectId(id) }
-      );
+      const result = await foodMenuCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
 
       res.send(result);
+    });
+
+    // User collection
+
+    app.get("/users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/users/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await userCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(result);
+    });
+
+    app.post("/users", async (req, res) => {
+      try {
+        const { name, email } = req.body;
+
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message: "Email is required",
+          });
+        }
+
+        // Check if customer already exists
+        const existingUser = await userCollection.findOne({ email });
+
+        // 🔐 LOGIN FLOW
+        if (existingUser) {
+          // Update last login activity
+          const updateResult = await userCollection.updateOne(
+            { email },
+            {
+              $set: {
+                "activity.lastLogin": new Date(),
+                "activity.status": "active",
+              },
+              $inc: {
+                "activity.loginCount": 1,
+              },
+            }
+          );
+
+          return res.status(200).send({
+            success: true,
+            message: "Login successful",
+            user: existingUser,
+          });
+        }
+
+        // 🆕 REGISTER FLOW
+        const newUser = {
+          name,
+          email,
+          role: "customer",
+          activity: {
+            createdAt: new Date(),
+            lastLogin: new Date(),
+            loginCount: 1,
+            status: "active",
+          },
+        };
+
+        const result = await userCollection.insertOne(newUser);
+
+        res.status(201).send({
+          success: true,
+          message: "Customer registered successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({
+          success: false,
+          message: "Server error",
+        });
+      }
     });
 
     // Send a ping to confirm a successful connections with app
