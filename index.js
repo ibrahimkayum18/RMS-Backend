@@ -47,12 +47,16 @@ async function run() {
       res.send(result);
     });
 
+    // individual food collection
+
     app.get("/food-menu/:id", async (req, res) => {
       const result = await foodMenuCollection.findOne({
         _id: new ObjectId(req.params.id),
       });
       res.send(result);
     });
+
+    // Update food menu products
 
     app.patch("/food-menu/:id", async (req, res) => {
       const result = await foodMenuCollection.updateOne(
@@ -61,6 +65,8 @@ async function run() {
       );
       res.send(result);
     });
+
+     // Delete food menu products
 
     app.delete("/food-menu/:id", async (req, res) => {
       const result = await foodMenuCollection.deleteOne({
