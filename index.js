@@ -1,20 +1,26 @@
 const express = require("express");
-const { ObjectId } = require("mongodb");
 const cors = require("cors");
+const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("@dotenvx/dotenvx").config();
-const app = express();
-const port = 5000;
 
-//middlewares
+const {
+  sendAdminEmail,
+  sendCustomerEmail,
+} = require("./utils/sendEmail");
+
+const app = express();
+const port = process.env.PORT || 5000;
+
+// =====================
+// MIDDLEWARE
+// =====================
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
-const uri = `mongodb+srv://smibrahimkayum_db_user:iNPDPSCtTEd4E9eS@kayum.qxnbmk4.mongodb.net/?appName=Kayum`;
-
-// Create MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
+// =====================
+// MONGODB
+// =====================
+const client = new MongoClient(process.env.MONGODB_URI, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
@@ -24,105 +30,68 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-    const foodMenuCollection = client.db("RMS").collection("Food_Menu");
-    const userCollection = client.db("RMS").collection("Users");
+    const db = client.db("RMS");
+    const foodMenuCollection = db.collection("Food_Menu");
+    const userCollection = db.collection("Users");
+    const contactCollection = db.collection("contact");
 
-    // Food Collections
+    console.log("✅ MongoDB connected");
 
+    // =====================
+    // FOOD MENU APIs
+    // =====================
     app.get("/food-menu", async (req, res) => {
       const result = await foodMenuCollection.find().toArray();
       res.send(result);
     });
 
     app.get("/food-menu/:id", async (req, res) => {
-      const id = req.params.id;
-
       const result = await foodMenuCollection.findOne({
-        _id: new ObjectId(id),
+        _id: new ObjectId(req.params.id),
       });
-
       res.send(result);
     });
 
     app.patch("/food-menu/:id", async (req, res) => {
-      const id = req.params.id;
-
       const result = await foodMenuCollection.updateOne(
-        { _id: new ObjectId(id) },
+        { _id: new ObjectId(req.params.id) },
         { $set: req.body }
       );
-
       res.send(result);
     });
 
     app.delete("/food-menu/:id", async (req, res) => {
-      const id = req.params.id;
-
       const result = await foodMenuCollection.deleteOne({
-        _id: new ObjectId(id),
+        _id: new ObjectId(req.params.id),
       });
-
       res.send(result);
     });
 
-    // User collection
-
-    app.get("/users", async (req, res) => {
-      const result = await userCollection.find().toArray();
-      res.send(result);
-    });
-
-    app.get("/users/:id", async (req, res) => {
-      const id = req.params.id;
-
-      const result = await userCollection.findOne({
-        _id: new ObjectId(id),
-      });
-
-      res.send(result);
-    });
-
+    // =====================
+    // USERS API
+    // =====================
     app.post("/users", async (req, res) => {
       try {
         const { name, email } = req.body;
-
         if (!email) {
-          return res.status(400).send({
-            success: false,
-            message: "Email is required",
-          });
+          return res.status(400).send({ message: "Email required" });
         }
 
-        // Check if customer already exists
         const existingUser = await userCollection.findOne({ email });
 
-        // 🔐 LOGIN FLOW
         if (existingUser) {
-          // Update last login activity
-          const updateResult = await userCollection.updateOne(
+          await userCollection.updateOne(
             { email },
             {
-              $set: {
-                "activity.lastLogin": new Date(),
-                "activity.status": "active",
-              },
-              $inc: {
-                "activity.loginCount": 1,
-              },
+              $set: { "activity.lastLogin": new Date() },
+              $inc: { "activity.loginCount": 1 },
             }
           );
-
-          return res.status(200).send({
-            success: true,
-            message: "Login successful",
-            user: existingUser,
-          });
+          return res.send({ success: true, user: existingUser });
         }
 
-        // 🆕 REGISTER FLOW
         const newUser = {
           name,
           email,
@@ -131,42 +100,79 @@ async function run() {
             createdAt: new Date(),
             lastLogin: new Date(),
             loginCount: 1,
-            status: "active",
           },
         };
 
         const result = await userCollection.insertOne(newUser);
-
-        res.status(201).send({
-          success: true,
-          message: "Customer registered successfully",
-          insertedId: result.insertedId,
-        });
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({
-          success: false,
-          message: "Server error",
-        });
+        res.status(201).send({ success: true, insertedId: result.insertedId });
+      } catch (err) {
+        res.status(500).send({ message: "Server error" });
       }
     });
 
-    // Send a ping to confirm a successful connections with app
+    // =====================
+    // CONTACT FORM API
+    // =====================
+    app.post("/api/contact", async (req, res) => {
+      try {
+        const { firstName, lastName, email, message } = req.body;
+
+        if (!firstName || !lastName || !email || !message) {
+          return res
+            .status(400)
+            .json({ success: false, message: "All fields required" });
+        }
+
+        const contactData = {
+          firstName,
+          lastName,
+          email,
+          message,
+          createdAt: new Date(),
+        };
+
+        // Save to DB
+        await contactCollection.insertOne(contactData);
+
+        // Send emails (non-blocking)
+        try {
+          await sendAdminEmail(contactData);
+          await sendCustomerEmail(contactData);
+        } catch (emailError) {
+          console.error("⚠️ Email failed:", emailError.message);
+        }
+
+        res.status(201).json({
+          success: true,
+          message: "Message received successfully",
+        });
+      } catch (error) {
+        console.error("Contact API error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+      }
+    });
+
+    app.get("/api/contact", async (req, res) => {
+      const result = await contactCollection.find().toArray();
+      res.send(result);
+    })
+
+    // Ping DB
     await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+  } catch (error) {
+    console.error(error);
   }
 }
-run().catch(console.dir);
 
+run();
+
+// =====================
+// ROOT
+// =====================
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Server is running");
 });
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`🚀 Server running on port ${port}`);
 });
