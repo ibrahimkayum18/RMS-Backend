@@ -49,6 +49,8 @@ async function run() {
       res.send(result);
     });
 
+    // Update food menu products
+
     app.patch("/food-menu/:id", async (req, res) => {
       const id = req.params.id;
 
