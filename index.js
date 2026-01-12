@@ -37,6 +37,8 @@ async function run() {
       res.send(result);
     });
 
+    // individual food collection
+
     app.get("/food-menu/:id", async (req, res) => {
       const id = req.params.id;
 
