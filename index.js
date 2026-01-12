@@ -62,6 +62,8 @@ async function run() {
       res.send(result);
     });
 
+     // Delete food menu products
+
     app.delete("/food-menu/:id", async (req, res) => {
       const id = req.params.id;
 
