@@ -44,7 +44,7 @@ async function run() {
     // =====================
     app.post("/food-menu", async (req, res) => {
       const body = req.body;
-      const result = await foodMenuCollection.insertOne();
+      const result = await foodMenuCollection.insertOne(body);
       res.send(result);
     });
 
