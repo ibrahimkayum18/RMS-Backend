@@ -27,7 +27,7 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("RMS");
     const foodMenuCollection = db.collection("Food_Menu");
@@ -321,7 +321,7 @@ async function run() {
     });
 
     // Ping DB
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
   } catch (error) {
     console.error(error);
   }
