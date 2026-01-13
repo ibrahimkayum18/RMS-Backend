@@ -3,10 +3,7 @@ const cors = require("cors");
 const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("@dotenvx/dotenvx").config();
 
-const {
-  sendAdminEmail,
-  sendCustomerEmail,
-} = require("./utils/sendEmail");
+const { sendAdminEmail, sendCustomerEmail, sendCustomerReplyEmail } = require("./utils/sendEmail");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -72,7 +69,7 @@ async function run() {
       res.send(result);
     });
 
-     // Delete food menu products
+    // Delete food menu products
 
     app.delete("/food-menu/:id", async (req, res) => {
       const result = await foodMenuCollection.deleteOne({
@@ -97,7 +94,7 @@ async function run() {
           await userCollection.updateOne(
             { email },
             {
-              $set: { "activity.lastLogin": new Date(), "Role": "guest" },
+              $set: { "activity.lastLogin": new Date(), Role: "guest" },
               $inc: { "activity.loginCount": 1 },
             }
           );
@@ -124,8 +121,60 @@ async function run() {
 
     app.get("/users", async (req, res) => {
       const result = await userCollection.find().toArray();
-      res.send(result)
-    })
+      res.send(result);
+    });
+
+    // DELETE a customer by ID
+    app.delete("/users/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await userCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "Failed to delete customer",
+        });
+      }
+    });
+
+    // UPDATE customer role
+    app.patch("/users/role/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { role } = req.body;
+
+        if (!role) {
+          return res.status(400).send({ message: "Role is required" });
+        }
+
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            role: role,
+          },
+        };
+
+        const result = await userCollection.updateOne(query, updateDoc);
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Customer not found" });
+        }
+
+        res.send({
+          success: true,
+          message: "Role updated successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "Failed to update role",
+        });
+      }
+    });
 
     // =====================
     // CONTACT FORM API
@@ -146,6 +195,7 @@ async function run() {
           email,
           message,
           createdAt: new Date(),
+          status: "Unread",
         };
 
         // Save to DB
@@ -172,7 +222,103 @@ async function run() {
     app.get("/api/contact", async (req, res) => {
       const result = await contactCollection.find().toArray();
       res.send(result);
-    })
+    });
+
+    app.get("/api/contact/:id", async (req, res) => {
+      const id = req.params;
+      const result = await contactCollection.findOne(id)
+      res.send(result);
+    });
+
+    // Update message status
+    app.put("/api/contact/:id", async (req, res) => {
+      try {
+        const { id } = req.params; // Message ID from URL
+        const { status } = req.body; // New status from request body
+
+        if (!status) {
+          return res.status(400).send({ error: "Status is required" });
+        }
+
+        const result = await contactCollection.updateOne(
+          { _id: new ObjectId(id) }, // Convert id string to ObjectId
+          { $set: { status } }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res
+            .status(404)
+            .send({ error: "Message not found or already updated" });
+        }
+
+        res.send({ success: true, message: "Status updated successfully" });
+      } catch (error) {
+        console.error("Failed to update message status:", error);
+        res.status(500).send({ error: "Internal server error" });
+      }
+    });
+
+    // Delete a message by ID
+    app.delete("/api/contact/:id", async (req, res) => {
+      try {
+        const { id } = req.params; // Message ID from URL
+
+        const result = await contactCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ error: "Message not found" });
+        }
+
+        res.send({ success: true, message: "Message deleted successfully" });
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+        res.status(500).send({ error: "Internal server error" });
+      }
+    });
+
+    /**
+     * Send reply to a customer message
+     * POST /api/contact/reply
+     * Body: { email: string, subject: string, message: string }
+     */
+
+    app.post("/api/contact/reply", async (req, res) => {
+      try {
+        const { email, subject, message, firstName } = req.body;
+
+        if (!email || !message) {
+          return res
+            .status(400)
+            .send({ error: "Email and message are required" });
+        }
+
+        const contactData = {
+          firstName,
+          email,
+          message,
+          subject
+        };
+
+        // Send emails (non-blocking)
+        try {
+          await sendCustomerReplyEmail(contactData);
+        } catch (emailError) {
+          console.error("⚠️ Email failed:", emailError.message);
+        }
+
+        res.status(201).json({
+          success: true,
+          message: "Message received successfully",
+        });
+
+
+      } catch (error) {
+        console.error("Failed to send reply:", error);
+        res.status(500).send({ error: "Failed to send reply" });
+      }
+    });
 
     // Ping DB
     await client.db("admin").command({ ping: 1 });

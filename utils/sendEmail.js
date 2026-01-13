@@ -19,6 +19,8 @@ transporter.verify((error) => {
   }
 });
 
+// Store owner will recieve the email when the customer submit form from the frontend contact form
+
 const sendAdminEmail = async (data) => {
   const { firstName, lastName, email, message } = data;
 
@@ -35,17 +37,36 @@ const sendAdminEmail = async (data) => {
   });
 };
 
+// Customer will recieve an confirmation email after submitting message in frontend contact form
+
 const sendCustomerEmail = async (data) => {
   const { firstName, email } = data;
 
   return transporter.sendMail({
-    from: `"Your Company" <${process.env.EMAIL_USER}>`,
+    from: `"Bengal Spicy Food" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "We received your message",
     html: `
       <p>Hi ${firstName},</p>
       <p>Thank you for contacting us. We have received your message and will get back to you shortly.</p>
-      <p>— Team</p>
+      <p>— Team Bengal Spicy Food</p>
+    `,
+  });
+};
+
+// Send reply email from admin when he reply from the dashboard
+
+const sendCustomerReplyEmail = async (data) => {
+  const { firstName, email, message, subject } = data;
+
+  return transporter.sendMail({
+    from: `"Bengal Spicy Food" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Reply to your message",
+    html: `
+      <p>Hi ${firstName},</p>
+      <p>${message}</p>
+      <p>— Team Bengal Spicy Food</p>
     `,
   });
 };
@@ -53,4 +74,5 @@ const sendCustomerEmail = async (data) => {
 module.exports = {
   sendAdminEmail,
   sendCustomerEmail,
+  sendCustomerReplyEmail
 };
