@@ -42,6 +42,12 @@ async function run() {
     // =====================
     // FOOD MENU APIs
     // =====================
+    app.post("/food-menu", async (req, res) => {
+      const body = req.body;
+      const result = await foodMenuCollection.insertOne();
+      res.send(result);
+    });
+
     app.get("/food-menu", async (req, res) => {
       const result = await foodMenuCollection.find().toArray();
       res.send(result);
@@ -91,7 +97,7 @@ async function run() {
           await userCollection.updateOne(
             { email },
             {
-              $set: { "activity.lastLogin": new Date() },
+              $set: { "activity.lastLogin": new Date(), "Role": "guest" },
               $inc: { "activity.loginCount": 1 },
             }
           );
@@ -115,6 +121,11 @@ async function run() {
         res.status(500).send({ message: "Server error" });
       }
     });
+
+    app.get("/users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result)
+    })
 
     // =====================
     // CONTACT FORM API
