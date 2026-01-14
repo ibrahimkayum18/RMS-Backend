@@ -33,6 +33,7 @@ async function run() {
     const foodMenuCollection = db.collection("Food_Menu");
     const userCollection = db.collection("Users");
     const contactCollection = db.collection("contact");
+    const cartCollection = db.collection("cart");
 
     console.log("✅ MongoDB connected");
 
@@ -77,6 +78,38 @@ async function run() {
       });
       res.send(result);
     });
+
+    // =====================
+    // CART API
+    // =====================
+
+    app.post("/cart", async (req, res) => {
+      const body = req.body;
+      const result = await cartCollection.insertOne(body);
+      res.send(result);
+    });
+
+    app.get("/cart", async (req, res) => {
+      const result = await cartCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/cart/:id", async (req, res) => {
+      const result = await cartCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
+
+    app.delete("/cart/:id", async (req, res) => {
+      const result = await cartCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
+
+
+
 
     // =====================
     // USERS API
