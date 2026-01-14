@@ -3,7 +3,11 @@ const cors = require("cors");
 const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("@dotenvx/dotenvx").config();
 
-const { sendAdminEmail, sendCustomerEmail, sendCustomerReplyEmail } = require("./utils/sendEmail");
+const {
+  sendAdminEmail,
+  sendCustomerEmail,
+  sendCustomerReplyEmail,
+} = require("./utils/sendEmail");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -90,7 +94,26 @@ async function run() {
     });
 
     app.get("/cart", async (req, res) => {
-      const result = await cartCollection.find().toArray();
+      const email = req.query.email;
+      if (!email) return res.status(400).send({ message: "Email required" });
+
+      const result = await cartCollection
+        .find({ customerEmail: email })
+        .toArray();
+
+      res.send(result);
+    });
+
+    app.patch("/cart/quantity/:id", async (req, res) => {
+      const { quantity } = req.body;
+
+      const result = await cartCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        {
+          $set: { quantity: quantity },
+        }
+      );
+
       res.send(result);
     });
 
@@ -108,8 +131,17 @@ async function run() {
       res.send(result);
     });
 
+    // =====================
+    // Checkout API
+    // =====================
 
+    app.post("/checkout", async (req, res) => {
+      const { email } = req.body;
 
+      await cartCollection.deleteMany({ customerEmail: email });
+
+      res.send({ message: "Checkout successful" });
+    });
 
     // =====================
     // USERS API
@@ -259,7 +291,7 @@ async function run() {
 
     app.get("/api/contact/:id", async (req, res) => {
       const id = req.params;
-      const result = await contactCollection.findOne(id)
+      const result = await contactCollection.findOne(id);
       res.send(result);
     });
 
@@ -331,7 +363,7 @@ async function run() {
           firstName,
           email,
           message,
-          subject
+          subject,
         };
 
         // Send emails (non-blocking)
@@ -345,8 +377,6 @@ async function run() {
           success: true,
           message: "Message received successfully",
         });
-
-
       } catch (error) {
         console.error("Failed to send reply:", error);
         res.status(500).send({ error: "Failed to send reply" });
