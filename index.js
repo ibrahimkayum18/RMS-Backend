@@ -38,6 +38,7 @@ async function run() {
     const userCollection = db.collection("Users");
     const contactCollection = db.collection("contact");
     const cartCollection = db.collection("cart");
+    const orderCollection = db.collection("order");
 
     console.log("✅ MongoDB connected");
 
@@ -67,6 +68,14 @@ async function run() {
     // Update food menu products
 
     app.patch("/food-menu/:id", async (req, res) => {
+      const result = await foodMenuCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: req.body }
+      );
+      res.send(result);
+    });
+
+    app.patch("/update/:id", async (req, res) => {
       const result = await foodMenuCollection.updateOne(
         { _id: new ObjectId(req.params.id) },
         { $set: req.body }
@@ -136,11 +145,104 @@ async function run() {
     // =====================
 
     app.post("/checkout", async (req, res) => {
-      const { email } = req.body;
+      try {
+        const {
+          customerEmail,
+          customerName,
+          phone,
+          address,
+          city,
+          paymentMethod,
+          items,
+          subtotal,
+          deliveryFee = 0,
+          total,
+          transactionId = null,
+        } = req.body;
 
-      await cartCollection.deleteMany({ customerEmail: email });
+        // ✅ Basic validation
+        if (!customerEmail || !items || items.length === 0) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid order data",
+          });
+        }
 
-      res.send({ message: "Checkout successful" });
+        // ✅ Build order object
+        const order = {
+          customerEmail,
+          customerName,
+          phone,
+          address,
+          city,
+          items,
+
+          subtotal: Number(subtotal),
+          deliveryFee: Number(deliveryFee),
+          total: Number(total),
+
+          paymentMethod, // cod | card | sslcommerz
+          transactionId,
+
+          paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
+
+          orderStatus: "processing", // ✅ default state
+
+          createdAt: new Date(),
+        };
+
+        // ✅ Insert order
+        const result = await orderCollection.insertOne(order);
+
+        // ✅ Clear cart
+        await cartCollection.deleteMany({
+          customerEmail,
+        });
+
+        res.send({
+          success: true,
+          message: "Order placed successfully",
+          orderId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Checkout Error:", error);
+        res.status(500).send({
+          success: false,
+          message: "Checkout failed",
+        });
+      }
+    });
+
+    app.get("/orders", async (req, res) => {
+      const result = await orderCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/orders/:id", async (req, res) => {
+      const result = await orderCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
+
+    app.patch("/orders/:id", async (req, res) => {
+  const { status } = req.body;
+
+  const result = await orderCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { orderStatus: status } }
+  );
+
+  res.send(result);
+});
+
+
+    app.delete("/orders/:id", async (req, res) => {
+      const result = await orderCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+
+      res.send(result);
     });
 
     // =====================
