@@ -226,15 +226,15 @@ async function run() {
     });
 
     app.patch("/orders/:id", async (req, res) => {
-  const { status } = req.body;
+      const { status } = req.body;
 
-  const result = await orderCollection.updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { orderStatus: status } }
-  );
+      const result = await orderCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { orderStatus: status } }
+      );
 
-  res.send(result);
-});
+      res.send(result);
+    });
 
 
     app.delete("/orders/:id", async (req, res) => {
